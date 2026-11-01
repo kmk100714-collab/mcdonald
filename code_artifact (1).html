@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>맥도날드 키오스크 (McDonald's Kiosk)</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            mcdRed: '#DA291C',
+            mcdYellow: '#FFC72C',
+            mcdYellowHover: '#E5B220',
+            mcdDark: '#27251F',
+            mcdGray: '#F2F2F2',
+            mcdBorder: '#E0E0E0'
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <!-- Babel for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    /* Custom Scrollbars & Kiosk UI styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #ccc;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #999;
+    }
+    .touch-callout-none {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 text-mcdDark font-sans antialiased touch-callout-none selection:bg-mcdYellow">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    // --- MENU DATA ---
+    const CATEGORIES = [
+      { id: 'rec', name: '추천 / 맥런치', icon: 'sparkles' },
+      { id: 'burger', name: '버거 & 세트', icon: 'sandwich' },
+      { id: 'happy_snack', name: '해피 스낵', icon: 'tag' },
+      { id: 'snack', name: '스낵 & 사이드', icon: 'fries' },
+      { id: 'drink', name: '음료', icon: 'cup-soda' },
+      { id: 'dessert', name: '디저트', icon: 'ice-cream' },
+      { id: 'mcmorning', name: '맥모닝', icon: 'sun' },
+      { id: 'happymeal', name: '해피밀', icon: 'gift' }
+    ];
+
+    const SIDES_OPTIONS = [
+      { id: 'fries_m', name: '후렌치 후라이 M', extraPrice: 0 },
+      { id: 'fries_l', name: '후렌치 후라이 L', extraPrice: 700 },
+      { id: 'cheese_sticks_2', name: '골든 모짜렐라 치즈스틱 (2조각)', extraPrice: 500 },
+      { id: 'coleslaw', name: '코울슬로', extraPrice: 200 },
+      { id: 'snackwrap', name: '상하이 치킨 스낵랩', extraPrice: 1200 }
+    ];
+
+    const DRINKS_OPTIONS = [
+      { id: 'coke_m', name: '코카-콜라 M', extraPrice: 0 },
+      { id: 'coke_zero_m', name: '코카-콜라 제로 M', extraPrice: 0 },
+      { id: 'sprite_m', name: '스프라이트 M', extraPrice: 0 },
+      { id: 'fanta_m', name: '환타 M', extraPrice: 0 },
+      { id: 'coke_l', name: '코카-콜라 L', extraPrice: 400 },
+      { id: 'iced_drip_m', name: '아이스 드립 커피 M', extraPrice: 0 },
+      { id: 'iced_americano', name: '아이스 아메리카노 M', extraPrice: 700 }
+    ];
+
+    const MENU_ITEMS = [
+      // === BURGERS & MEALS ===
+      { id: 'big_arch', name: '빅아치', category: 'burger', isRec: true, priceSingle: 12400, priceSet: 13900, priceLunch: 13000, cal: 850, img: '🍔', desc: '두툼한 패티와 빅아치 특제 소스가 어우러진 프리미엄 버거' },
+      { id: 'db_shanghai', name: '더블 맥스파이시® 상하이 버거', category: 'burger', isRec: true, priceSingle: 9300, priceSet: 11200, cal: 750, img: '🍗', desc: '매콤한 시즈닝의 닭가슴 패티가 2장 들어간 대용량 스파이시 버거' },
+      { id: 'dqp', name: '더블 쿼터파운더® 치즈', category: 'burger', isRec: true, priceSingle: 7700, priceSet: 9600, cal: 770, img: '🍔', desc: '쿼터파운더 100% 순쇠고기 패티가 2장! 고소함과 풍미가 2배' },
+      { id: 'mccrispy_deluxe', name: '맥크리스피® 치킨 디럭스', category: 'burger', isRec: true, priceSingle: 6800, priceSet: 8400, priceLunch: 7500, cal: 600, img: '🍗', desc: '100% 통닭다리살 케이준 패티에 신선한 토마토와 양상추의 조화' },
+      { id: '1955', name: '1955 버거®', category: 'burger', isRec: true, priceSingle: 6700, priceSet: 8400, priceLunch: 7300, cal: 572, img: '🍔', desc: '113g 두툼한 패티와 스페셜 1955 소스, 그릴드 어니언의 스페셜한 풍미' },
+      { id: 'shrim_beef', name: '슈비버거', category: 'burger', isRec: false, priceSingle: 6200, priceSet: 8500, cal: 563, img: '🍤', desc: '탱글한 통새우 패티와 순 쇠고기 패티의 환상적인 육해공 조합' },
+      { id: 'triple_cheese', name: '트리플 치즈버거', category: 'burger', isRec: false, priceSingle: 6100, priceSet: 7500, cal: 620, img: '🍔', desc: '쇠고기 패티 3장에 치즈 3장이 겹겹이 쌓인 치즈 파티' },
+      { id: 'qp', name: '쿼터파운더® 치즈', category: 'burger', isRec: false, priceSingle: 5900, priceSet: 7900, cal: 536, img: '🍔', desc: '두툼한 1/4파운드 쇠고기 패티와 고소한 치즈 2장의 클래식한 조합' },
+      { id: 'shanghai', name: '맥스파이시® 상하이 버거', category: 'burger', isRec: true, priceSingle: 5900, priceSet: 7700, priceLunch: 6600, cal: 501, img: '🍗', desc: '매콤한 시즈닝의 100% 닭가슴 통살 패티에 신선한 토마토와 양상추' },
+      { id: 'mccrispy_classic', name: '맥크리스피® 치킨 클래식', category: 'burger', isRec: false, priceSingle: 5900, priceSet: 7400, cal: 580, img: '🍗', desc: '100% 통닭다리살 케이준 패티와 치킨 전용 포테이토 브리오쉬 번' },
+      { id: 'btd', name: '베이컨 토마토 디럭스®', category: 'burger', isRec: true, priceSingle: 5800, priceSet: 8000, priceLunch: 7300, cal: 570, img: '🍔', desc: '두 장의 쇠고기 패티, 고소한 베이컨, 토마토와 스위트 칠리 소스' },
+      { id: 'big_mac', name: '빅맥®', category: 'burger', isRec: true, priceSingle: 5700, priceSet: 7600, priceLunch: 6500, cal: 583, img: '🍔', desc: '100% 순 쇠고기 패티 2장에 빅맥 특별 소스! 50년 대표 시그니처' },
+      { id: 'mc_chicken_moz', name: '맥치킨® 모짜렐라', category: 'burger', isRec: false, priceSingle: 5000, priceSet: 7300, cal: 684, img: '🥪', desc: '맥치킨 패티와 골든 모짜렐라 치즈스틱 2개, 매콤한 아라비아따 소스' },
+      { id: 'double_cheese', name: '더블 치즈버거', category: 'burger', isRec: false, priceSingle: 5000, priceSet: 6300, cal: 480, img: '🍔', desc: '쇠고기 패티 2장과 치즈 2장의 한층 더 진한 풍미' },
+      { id: 'db_bulgogi', name: '더블 불고기 버거', category: 'burger', isRec: false, priceSingle: 4700, priceSet: 6800, priceLunch: 6300, cal: 636, img: '🍔', desc: '진한 불고기 소스의 패티가 2장! 더욱 풍성한 불고기 버거' },
+      { id: 'shushu', name: '슈슈버거', category: 'burger', isRec: false, priceSingle: 4700, priceSet: 6000, cal: 409, img: '🍤', desc: '탱글탱글한 통새우살 패티와 매콤달콤한 어니언 소스' },
+      { id: 'tomato_cheese_beef', name: '토마토 치즈 비프 버거', category: 'burger', isRec: false, priceSingle: 4000, priceSet: 5600, priceLunch: 5200, cal: 380, img: '🍔', desc: '신선한 토마토와 고소한 치즈, 쇠고기 패티의 실속 있는 조화' },
+      { id: 'bulgogi', name: '불고기 버거', category: 'burger', isRec: false, priceSingle: 3800, priceSet: 5500, cal: 409, img: '🍔', desc: '한국인의 입맛에 딱 맞춘 진한 불고기 소스에 재운 돼지고기 패티' },
+      { id: 'mc_chicken', name: '맥치킨®', category: 'burger', isRec: false, priceSingle: 3500, priceSet: 5600, cal: 483, img: '🥪', desc: '바삭하게 튀겨낸 패티와 고소한 화이트 마요 소스' },
+      { id: 'cheeseburger', name: '치즈버거', category: 'burger', isRec: false, priceSingle: 3200, priceSet: 5000, cal: 318, img: '🍔', desc: '고소한 치즈와 쇠고기 패티, 피클과 케찹이 어우러진 클래식' },
+      { id: 'hamburger', name: '햄버거', category: 'burger', isRec: false, priceSingle: 2800, cal: 260, img: '🍔', desc: '100% 순 쇠고기 패티에 상큼한 피클과 케찹을 넣은 맥도날드 기본 버거' },
+
+      // === HAPPY SNACK (해피 스낵) ===
+      { id: 'hs_fries_s', name: '후렌치 후라이 스몰', category: 'happy_snack', isRec: true, priceSingle: 1000, cal: 210, img: '🍟', desc: '해피스낵 할인 특가! 겉은 바삭 속은 촉촉한 감자튀김 S' },
+      { id: 'hs_crab_snackwrap', name: '게살 크림 크로켓 스낵랩', category: 'happy_snack', isRec: true, priceSingle: 3000, cal: 290, img: '🌯', desc: '부드러운 게살 크림 크로켓이 또띠아에 쏙 들어간 해피스낵' },
+      { id: 'hs_grimace_shake', name: '그리머스 쉐이크 미디엄', category: 'happy_snack', isRec: true, priceSingle: 3000, cal: 310, img: '🥤', desc: '달콤한 블루베리 풍미의 그리머스 한정판 쉐이크' },
+      { id: 'hs_mcwing_2', name: '맥윙® 2조각', category: 'happy_snack', isRec: true, priceSingle: 3300, cal: 240, img: '🍗', desc: '바삭하고 짭조름한 맥윙 2조각 해피스낵 할인가' },
+      { id: 'hs_iced_drip_m', name: '아이스 드립 커피 미디엄', category: 'happy_snack', isRec: true, priceSingle: 1500, cal: 10, img: '☕', desc: '시원하고 깔끔한 아이스 드립 커피 M' },
+      { id: 'hs_iced_drip_l', name: '아이스 드립 커피 라지', category: 'happy_snack', isRec: true, priceSingle: 2000, cal: 15, img: '☕', desc: '넉넉한 용량의 아이스 드립 커피 L' },
+
+      // === SNACK & SIDE ===
+      { id: 'mcwing_4', name: '맥윙® 4조각', category: 'snack', isRec: false, priceSingle: 6900, cal: 480, img: '🍗', desc: '바삭하게 튀겨낸 닭날개&봉 4조각' },
+      { id: 'mcwing_8', name: '맥윙® 8조각', category: 'snack', isRec: false, priceSingle: 13000, cal: 960, img: '🍗', desc: '여럿이서 푸짐하게 즐기는 맥윙 8조각' },
+      { id: 'mcnuggets_4', name: '맥너겟® 4조각', category: 'snack', isRec: false, priceSingle: 2800, cal: 170, img: '🍗', desc: '한입에 바삭 촉촉 맥너겟 4조각' },
+      { id: 'mcnuggets_6', name: '맥너겟® 6조각', category: 'snack', isRec: false, priceSingle: 4100, cal: 270, img: '🍗', desc: '디핑소스와 함께 즐기는 맥너겟 6조각' },
+      { id: 'shanghai_snackwrap', name: '상하이 치킨 스낵랩', category: 'snack', isRec: true, priceSingle: 3500, cal: 283, img: '🌯', desc: '매콤한 치킨 텐더와 베이컨이 베이직 또띠아 속으로' },
+      { id: 'fries_m_snack', name: '후렌치 후라이 미디엄', category: 'snack', isRec: false, priceSingle: 2600, cal: 332, img: '🍟', desc: '맥도날드의 대표 감자튀김 M' },
+      { id: 'coleslaw_snack', name: '코울슬로', category: 'snack', isRec: false, priceSingle: 2000, cal: 179, img: '🥗', desc: '아삭한 양배추와 새콤달콤 드레싱' },
+      { id: 'cheese_sticks_4', name: '골든 모짜렐라 치즈스틱 4조각', category: 'snack', isRec: false, priceSingle: 4500, cal: 324, img: '🧀', desc: '자연 모짜렐라 치즈가 늘어나는 치즈스틱 4조각' },
+      { id: 'cheese_sticks_2_snack', name: '골든 모짜렐라 치즈스틱 2조각', category: 'snack', isRec: false, priceSingle: 2800, cal: 162, img: '🧀', desc: '고소한 자연 모짜렐라 치즈스틱 2조각' },
+      { id: 'tenders_2', name: '맥스파이시® 치킨텐더 2조각', category: 'snack', isRec: false, priceSingle: 2700, cal: 188, img: '🍗', desc: '매콤하게 시즈닝된 100% 닭안심살' },
+      { id: 'extra_sauce', name: '추가 소스 (케이준/스위트앤샤워/스위트칠리 등)', category: 'snack', isRec: false, priceSingle: 300, cal: 45, img: '🥫', desc: '맥너겟 및 사이드용 추가 소스' },
+      { id: 'hotcake_syrup', name: '핫케익 시럽 추가', category: 'snack', isRec: false, priceSingle: 400, cal: 100, img: '🍯', desc: '달콤한 핫케익 전용 메이플 향 시럽' },
+
+      // === DRINKS ===
+      { id: 'mango_mcfizz', name: '망고 맥피즈 미디엄', category: 'drink', isRec: true, priceSingle: 2500, cal: 130, img: '🍹', desc: '상큼한 망고와 탄산의 청량한 만남' },
+      { id: 'coke_zero_m', name: '코카-콜라 제로 / 스프라이트 제로 M', category: 'drink', isRec: false, priceSingle: 2000, cal: 0, img: '🥤', desc: '제로 칼로리의 깔끔한 탄산음료' },
+      { id: 'soda_m', name: '코카-콜라 / 스프라이트 / 환타 M', category: 'drink', isRec: false, priceSingle: 2000, cal: 147, img: '🥤', desc: '시원하고 청량한 탄산음료' },
+      { id: 'mango_peach_icetea', name: '망고 피치 아이스티 미디엄', category: 'drink', isRec: false, priceSingle: 3400, cal: 160, img: '🧋', desc: '망고와 복숭아 향이 가득한 달콤한 아이스티' },
+      { id: 'peach_icetea', name: '피치 아이스티 미디엄', category: 'drink', isRec: false, priceSingle: 3100, cal: 140, img: '🧋', desc: '향긋한 복숭아 맛 아이스티' },
+      { id: 'shakes', name: '바닐라 / 딸기 / 초코 쉐이크 미디엄', category: 'drink', isRec: false, priceSingle: 2800, cal: 330, img: '🥤', desc: '부드럽고 진한 밀크 쉐이크' },
+      { id: 'water', name: '생수', category: 'drink', isRec: false, priceSingle: 1300, cal: 0, img: '💧', desc: '깔끔한 미네랄 워터 500ml' },
+      { id: 'iced_vanilla_latte', name: '아이스 바닐라 라떼 미디엄', category: 'drink', isRec: false, priceSingle: 3900, cal: 215, img: '☕', desc: '달콤한 바닐라 향과 에스프레소, 우유' },
+      { id: 'iced_americano_m', name: '아이스 아메리카노 미디엄', category: 'drink', isRec: false, priceSingle: 2700, cal: 10, img: '☕', desc: '100% 아라비카 원두로 내린 아이스 아메리카노' },
+      { id: 'iced_caffelatte', name: '아이스 카페라떼 미디엄', category: 'drink', isRec: false, priceSingle: 3400, cal: 110, img: '☕', desc: '고소한 우유와 에스프레소의 조화' },
+      { id: 'drip_coffee_m', name: '드립 커피 미디엄', category: 'drink', isRec: false, priceSingle: 2400, cal: 10, img: '☕', desc: '따뜻하고 깔끔한 드립 커피' },
+      { id: 'vanilla_latte_m', name: '바닐라 라떼 미디엄', category: 'drink', isRec: false, priceSingle: 3900, cal: 220, img: '☕', desc: '따뜻하고 달콤한 바닐라 라떼' },
+      { id: 'americano_m', name: '아메리카노 미디엄', category: 'drink', isRec: false, priceSingle: 2700, cal: 10, img: '☕', desc: '따뜻한 진한 아메리카노' },
+      { id: 'caffelatte_m', name: '카페라떼 미디엄', category: 'drink', isRec: false, priceSingle: 3400, cal: 150, img: '☕', desc: '부드러운 스팀 밀크 라떼' },
+      { id: 'cappuccino_m', name: '카푸치노 미디엄', category: 'drink', isRec: false, priceSingle: 3400, cal: 150, img: '☕', desc: '풍성한 우유 거품의 카푸치노' },
+      { id: 'decaf_iced_vanilla', name: '디카페인 아이스 바닐라 라떼 M', category: 'drink', isRec: false, priceSingle: 4100, cal: 215, img: '☕', desc: '카페인 부담 없이 즐기는 아이스 바닐라 라떼' },
+      { id: 'decaf_iced_americano', name: '디카페인 아이스 아메리카노 M', category: 'drink', isRec: false, priceSingle: 2900, cal: 10, img: '☕', desc: '카페인을 줄인 깔끔한 아이스 아메리카노' },
+      { id: 'decaf_iced_latte', name: '디카페인 아이스 카페라떼 M', category: 'drink', isRec: false, priceSingle: 3600, cal: 110, img: '☕', desc: '디카페인 고소한 아이스 카페라떼' },
+      { id: 'decaf_vanilla_latte', name: '디카페인 바닐라 라떼 M', category: 'drink', isRec: false, priceSingle: 4100, cal: 220, img: '☕', desc: '따뜻한 디카페인 바닐라 라떼' },
+      { id: 'decaf_americano', name: '디카페인 아메리카노 M', category: 'drink', isRec: false, priceSingle: 2900, cal: 10, img: '☕', desc: '따뜻한 디카페인 아메리카노' },
+      { id: 'decaf_latte', name: '디카페인 카페라떼 M', category: 'drink', isRec: false, priceSingle: 3600, cal: 150, img: '☕', desc: '부드러운 디카페인 카페라떼' },
+      { id: 'decaf_cappuccino', name: '디카페인 카푸치노 M', category: 'drink', isRec: false, priceSingle: 3600, cal: 150, img: '☕', desc: '디카페인 우유 거품 카푸치노' },
+
+      // === DESSERT ===
+      { id: 'caramel_popcorn_mcflurry', name: '카라멜 팝콘 맥플러리', category: 'dessert', isRec: true, priceSingle: 4200, cal: 380, img: '🍨', desc: '바삭한 팝콘과 카라멜의 달콤함이 더해진 맥플러리' },
+      { id: 'str_caramel_popcorn_mcflurry', name: '스트로베리 카라멜 팝콘 맥플러리', category: 'dessert', isRec: true, priceSingle: 4200, cal: 390, img: '🍨', desc: '상큼한 딸기와 카라멜 팝콘의 완벽 조합' },
+      { id: 'choco_oreo_mcflurry', name: '초코 오레오 맥플러리', category: 'dessert', isRec: false, priceSingle: 3600, cal: 330, img: '🍨', desc: '오레오 쿠키와 초코 시럽의 오리지널 맥플러리' },
+      { id: 'berry_oreo_mcflurry', name: '딸기 오레오 맥플러리', category: 'dessert', isRec: false, priceSingle: 3600, cal: 320, img: '🍨', desc: '상큼한 딸기 과육과 오레오 쿠키 바삭함' },
+      { id: 'oreo_mcflurry', name: '오레오 맥플러리', category: 'dessert', isRec: false, priceSingle: 3600, cal: 310, img: '🍨', desc: '클래식 바삭한 오레오 쿠키 맥플러리' },
+      { id: 'berry_str_mcflurry', name: '베리 스트로베리 맥플러리', category: 'dessert', isRec: false, priceSingle: 3600, cal: 290, img: '🍨', desc: '진한 딸기 풍미 가득 아이스크림' },
+      { id: 'sundae_choco_str', name: '초코 / 딸기 선데이 아이스크림', category: 'dessert', isRec: false, priceSingle: 2400, cal: 230, img: '🍦', desc: '달콤한 시럽이 올라간 선데이 아이스크림' },
+      { id: 'sundae_vanilla', name: '바닐라 선데이 아이스크림', category: 'dessert', isRec: false, priceSingle: 2200, cal: 190, img: '🍦', desc: '부드러운 우유맛 바닐라 선데이' },
+      { id: 'str_cone', name: '스트로베리콘', category: 'dessert', isRec: false, priceSingle: 1900, cal: 140, img: '🍦', desc: '상큼한 딸기맛 소프트 아이스크림콘' },
+      { id: 'icecream_cone', name: '아이스크림콘', category: 'dessert', isRec: false, priceSingle: 1500, cal: 153, img: '🍦', desc: '맥도날드 영원의 시그니처 소프트콘' },
+
+      // === MCMORNING ===
+      { id: 'egg_mcmuffin', name: '에그 맥머핀®', category: 'mcmorning', isRec: true, priceSingle: 3500, priceSet: 4600, cal: 303, img: '🧁', desc: '갓 깨트린 계란과 캐나디안 베이컨, 치즈' },
+      { id: 'sausage_egg_mcmuffin', name: '소세지 에그 맥머핀®', category: 'mcmorning', isRec: true, priceSingle: 3900, priceSet: 5000, cal: 463, img: '🧁', desc: '소세지 패티와 계란, 치즈의 든든한 맥모닝' },
+
+      // === HAPPY MEAL ===
+      { id: 'hm_egg_mcmuffin', name: '해피밀® 에그 맥머핀 세트', category: 'happymeal', isRec: false, priceSingle: 4200, cal: 380, img: '🎁', desc: '장난감 포함 에그 맥머핀 세트' },
+      { id: 'hm_bulgogi', name: '해피밀® 불고기 버거 세트', category: 'happymeal', isRec: false, priceSingle: 4500, cal: 480, img: '🎁', desc: '장난감 포함 불고기 버거 세트' }
+    ];
+
+    // Main Kiosk App Component
+    function App() {
+      const [activeCategory, setActiveCategory] = useState('rec');
+      const [cart, setCart] = useState([]);
+      const [diningType, setDiningType] = useState('eatIn'); // 'eatIn' | 'takeout'
+      
+      // Customization Modal State
+      const [selectedItem, setSelectedItem] = useState(null);
+      const [mealType, setMealType] = useState('single'); // 'single' | 'set' | 'largeSet'
+      const [selectedSide, setSelectedSide] = useState(SIDES_OPTIONS[0]);
+      const [selectedDrink, setSelectedDrink] = useState(DRINKS_OPTIONS[0]);
+      const [drinkSize, setDrinkSize] = useState('M'); // 'M' | 'L' for customizable drinks
+
+      // Host Order Send Modal State
+      const [isHostModalOpen, setIsHostModalOpen] = useState(false);
+      const [copiedText, setCopiedText] = useState(false);
+      const [customerNote, setCustomerNote] = useState('');
+
+      // --- Student Info & Host Dashboard State ---
+      const [studentId, setStudentId] = useState(() => localStorage.getItem('mcd_student_id') || '');
+      const [studentName, setStudentName] = useState(() => localStorage.getItem('mcd_student_name') || '');
+      const [userRole, setUserRole] = useState(() => localStorage.getItem('mcd_user_role') || 'student'); // 'student' | 'host'
+      const [isHostLoggedIn, setIsHostLoggedIn] = useState(() => localStorage.getItem('mcd_host_logged') === 'true');
+      const [submittedOrders, setSubmittedOrders] = useState(() => {
+        const saved = localStorage.getItem('mcd_group_orders');
+        return saved ? JSON.parse(saved) : [];
+      });
+      const [showHostDashboard, setShowHostDashboard] = useState(false);
+      const [orderSubmittedSuccess, setOrderSubmittedSuccess] = useState(false);
+
+      // Load icons
+      useEffect(() => {
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      }, [activeCategory, cart, selectedItem, isHostModalOpen, showHostDashboard, userRole]);
+
+      // Save student profile
+      useEffect(() => {
+        localStorage.setItem('mcd_student_id', studentId);
+        localStorage.setItem('mcd_student_name', studentName);
+      }, [studentId, studentName]);
+
+      // Save group orders pool to localStorage
+      useEffect(() => {
+        localStorage.setItem('mcd_group_orders', JSON.stringify(submittedOrders));
+      }, [submittedOrders]);
+
+      const handleSwitchToStudent = () => {
+        setUserRole('student');
+        localStorage.setItem('mcd_user_role', 'student');
+        setShowHostDashboard(false);
+      };
+
+      // Calculate unit price for modal option
+      const modalCalculatedPrice = useMemo(() => {
+        if (!selectedItem) return 0;
+        let base = selectedItem.priceSingle;
+        if (mealType === 'lunch' && selectedItem.priceLunch) {
+          base = selectedItem.priceLunch + selectedSide.extraPrice + selectedDrink.extraPrice;
+        } else if (mealType === 'set' && selectedItem.priceSet) {
+          base = selectedItem.priceSet + selectedSide.extraPrice + selectedDrink.extraPrice;
+        } else if (mealType === 'largeSet' && selectedItem.priceSet) {
+          base = selectedItem.priceSet + 700 + selectedSide.extraPrice + selectedDrink.extraPrice;
+        }
+        return base;
+      }, [selectedItem, mealType, selectedSide, selectedDrink]);
+
+      const totalAmount = useMemo(() => {
+        return cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+      }, [cart]);
+
+      const totalItemsCount = useMemo(() => {
+        return cart.reduce((sum, item) => sum + item.qty, 0);
+      }, [cart]);
+
+      // Submit individual student order to Host Pool
+      const handleSendOrderToGroupPool = () => {
+        if (!studentId.trim() || !studentName.trim()) {
+          alert('주문자 학번과 이름을 입력해주세요!');
+          return;
+        }
+
+        const newOrder = {
+          id: 'ORD-' + Date.now().toString().slice(-6),
+          studentId: studentId.trim(),
+          studentName: studentName.trim(),
+          diningType: diningType === 'eatIn' ? '매장 식사' : '포장',
+          customerNote: customerNote.trim(),
+          items: cart,
+          totalAmount: totalAmount,
+          createdAt: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+        };
+
+        setSubmittedOrders(prev => [newOrder, ...prev]);
+        setCart([]);
+        setIsHostModalOpen(false);
+        setOrderSubmittedSuccess(true);
+        setTimeout(() => setOrderSubmittedSuccess(false), 3500);
+      };
+
+      // Filtered items by active category
+      const displayedItems = useMemo(() => {
+        if (activeCategory === 'rec') {
+          return MENU_ITEMS.filter(item => item.isRec || item.priceLunch);
+        }
+        return MENU_ITEMS.filter(item => item.category === activeCategory);
+      }, [activeCategory]);
+
+      // Open detail/customize modal
+      const handleItemClick = (item) => {
+        setSelectedItem(item);
+        if (item.priceLunch) {
+          setMealType('lunch');
+        } else if (item.priceSet) {
+          setMealType('set');
+        } else {
+          setMealType('single');
+        }
+        setSelectedSide(SIDES_OPTIONS[0]);
+        setSelectedDrink(DRINKS_OPTIONS[0]);
+      };
+
+      // Add item to Cart
+      const handleAddToCart = () => {
+        if (!selectedItem) return;
+
+        let nameFormatted = selectedItem.name;
+        if (mealType === 'lunch') nameFormatted += ' (맥런치 세트)';
+        else if (mealType === 'set') nameFormatted += ' (일반세트)';
+        else if (mealType === 'largeSet') nameFormatted += ' (라지세트)';
+
+        const cartEntry = {
+          id: Date.now() + Math.random().toString(36).substr(2, 4),
+          itemId: selectedItem.id,
+          name: nameFormatted,
+          mealType: mealType,
+          side: (mealType !== 'single') ? selectedSide.name : null,
+          drink: (mealType !== 'single') ? selectedDrink.name : null,
+          price: modalCalculatedPrice,
+          qty: 1,
+          img: selectedItem.img
+        };
+
+        setCart(prev => {
+          const existingIdx = prev.findIndex(ci => 
+            ci.itemId === cartEntry.itemId &&
+            ci.mealType === cartEntry.mealType &&
+            ci.side === cartEntry.side &&
+            ci.drink === cartEntry.drink
+          );
+          if (existingIdx > -1) {
+            const copy = [...prev];
+            copy[existingIdx].qty += 1;
+            return copy;
+          }
+          return [...prev, cartEntry];
+        });
+
+        setSelectedItem(null);
+      };
+
+      // Quantity adjustments in Cart
+      const updateQty = (id, delta) => {
+        setCart(prev => {
+          return prev.map(item => {
+            if (item.id === id) {
+              const newQty = item.qty + delta;
+              return newQty > 0 ? { ...item, qty: newQty } : null;
+            }
+            return item;
+          }).filter(Boolean);
+        });
+      };
+
+      // Format order text for Host (Kakao / SMS)
+      const formattedOrderText = useMemo(() => {
+        const diningLabel = diningType === 'eatIn' ? '🍔 매장 식사' : '🛍️ 포장 (Takeout)';
+        const dateStr = new Date().toLocaleString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        
+        let text = `[맥도날드 키오스크 주문 요청서]\n`;
+        text += `--------------------------\n`;
+        text += `• 주문자: ${studentId} ${studentName}\n`;
+        text += `• 식사 방식: ${diningLabel}\n`;
+        text += `• 주문 시각: ${dateStr}\n`;
+        if (customerNote.trim()) {
+          text += `• 요청 사항: ${customerNote.trim()}\n`;
+        }
+        text += `--------------------------\n`;
+        text += `[주문 내역]\n`;
+
+        cart.forEach((item, index) => {
+          text += `${index + 1}. ${item.name} x ${item.qty}개 (${(item.price * item.qty).toLocaleString()}원)\n`;
+          if (item.side) text += `   - 사이드: ${item.side}\n`;
+          if (item.drink) text += `   - 음 료: ${item.drink}\n`;
+        });
+
+        text += `--------------------------\n`;
+        text += `개인 주문 금액: ₩${totalAmount.toLocaleString()}원\n`;
+        text += `\n호스트님, 위 주문대로 결제 부탁드립니다! ❤️`;
+
+        return text;
+      }, [cart, diningType, totalAmount, customerNote, studentId, studentName]);
+
+      // Copy Host Text
+      const handleCopyHostText = () => {
+        navigator.clipboard.writeText(formattedOrderText).then(() => {
+          setCopiedText(true);
+          setTimeout(() => setCopiedText(false), 2500);
+        });
+      };
+
+      return (
+        <div className="flex flex-col h-screen max-w-5xl mx-auto bg-white shadow-2xl overflow-hidden relative border-x border-gray-200">
+          
+          {/* HEADER (Kiosk Top Branding) */}
+          <header className="bg-mcdRed text-white flex flex-col sm:flex-row items-center justify-between px-4 py-3 shadow-md z-10 shrink-0 gap-2">
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+              <div className="flex items-center gap-2">
+                <div className="bg-mcdYellow rounded-lg p-1.5 flex items-center justify-center shadow-inner">
+                  <span className="text-2xl font-black text-red-700 tracking-tighter leading-none" style={{ fontFamily: 'sans-serif' }}>m</span>
+                </div>
+                <div>
+                  <h1 className="text-lg font-extrabold tracking-tight text-mcdYellow leading-none">
+                    McDonald's
+                  </h1>
+                  <p className="text-[10px] text-red-100 opacity-90">단체 주문 키오스크 시스템</p>
+                </div>
+              </div>
+
+              {/* Role Toggle Switch */}
+            <div className="flex items-center gap-1 bg-red-900/60 p-1 rounded-xl border border-red-400/30 text-xs">
+              <button
+                onClick={handleSwitchToStudent}
+                className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                  userRole === 'student' ? 'bg-white text-mcdRed shadow-sm' : 'text-red-200 hover:text-white'
+                }`}
+              >
+                👤 일반 주문자
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (userRole === 'host' && isHostLoggedIn) {
+                    setShowHostDashboard(true);
+                    return;
+                  }
+                  const pw = window.prompt('호스트 비밀번호 4자리를 입력하세요 (비밀번호: 6014)');
+                  if (pw === '6014') {
+                    setIsHostLoggedIn(true);
+                    localStorage.setItem('mcd_host_logged', 'true');
+                    setUserRole('host');
+                    localStorage.setItem('mcd_user_role', 'host');
+                    setShowHostDashboard(true);
+                  } else if (pw !== null) {
+                    alert('비밀번호가 올바르지 않습니다. (비밀번호: 6014)');
+                  }
+                }}
+                className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                  userRole === 'host' ? 'bg-mcdYellow text-mcdDark shadow-sm' : 'text-red-200 hover:text-white'
+                }`}
+              >
+                👑 호스트 로그인
+              </button>
+            </div>
+            </div>
+
+            {/* Student Info Bar & Dining Option */}
+            <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 bg-white/10 px-2.5 py-1 rounded-xl text-xs border border-white/20">
+                <span className="text-mcdYellow font-bold">학번:</span>
+                <input
+                  type="text"
+                  placeholder="예: 20261234"
+                  value={studentId}
+                  onChange={(e) => setStudentId(e.target.value)}
+                  className="w-20 bg-transparent text-white placeholder-red-200 border-b border-red-300 focus:outline-none focus:border-mcdYellow px-1 text-xs"
+                />
+                <span className="text-mcdYellow font-bold ml-1">이름:</span>
+                <input
+                  type="text"
+                  placeholder="홍길동"
+                  value={studentName}
+                  onChange={(e) => setStudentName(e.target.value)}
+                  className="w-16 bg-transparent text-white placeholder-red-200 border-b border-red-300 focus:outline-none focus:border-mcdYellow px-1 text-xs"
+                />
+              </div>
+
+              <div className="flex bg-red-800/60 p-0.5 rounded-xl border border-red-400/40">
+                <button
+                  onClick={() => setDiningType('eatIn')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                    diningType === 'eatIn'
+                      ? 'bg-mcdYellow text-mcdDark shadow'
+                      : 'text-white'
+                  }`}
+                >
+                  매장
+                </button>
+                <button
+                  onClick={() => setDiningType('takeout')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                    diningType === 'takeout'
+                      ? 'bg-mcdYellow text-mcdDark shadow'
+                      : 'text-white'
+                  }`}
+                >
+                  포장
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* SUCCESS NOTIFICATION TOAST */}
+          {orderSubmittedSuccess && (
+            <div className="bg-emerald-600 text-white px-4 py-2 text-center text-xs font-extrabold animate-bounce z-30 shadow-md flex items-center justify-center gap-2">
+              <span>🎉</span>
+              <span>[{studentName || '주문자'}] 님의 주문이 성공적으로 제출되었습니다! 호스트에게 전달되었습니다.</span>
+            </div>
+          )}
+
+          {/* MAIN CONTENT AREA OR HOST DASHBOARD */}
+          {userRole === 'host' && showHostDashboard ? (
+            /* HOST DASHBOARD VIEW */
+            <div className="flex-1 bg-gray-50 overflow-y-auto p-4 sm:p-6 flex flex-col gap-5">
+              
+              {/* Host Summary Header */}
+              <div className="bg-mcdDark text-white p-5 rounded-3xl shadow-lg border border-amber-500/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="bg-mcdYellow text-mcdDark text-xs font-extrabold px-2.5 py-0.5 rounded-full">
+                      👑 호스트 관리자
+                    </span>
+                    <button 
+                      onClick={() => {
+                        setIsHostLoggedIn(false);
+                        localStorage.removeItem('mcd_host_logged');
+                        handleSwitchToStudent();
+                      }}
+                      className="text-xs text-red-300 hover:text-white underline ml-2 font-bold"
+                    >
+                      로그아웃
+                    </button>
+                  </div>
+                  <h2 className="text-2xl font-black text-white mt-1">단체 주문 수집 현황</h2>
+                  <p className="text-xs text-gray-300">
+                    친구들이 제출한 모든 메뉴 항목이 수집되어 총액이 자동 계산됩니다.
+                  </p>
+                </div>
+
+                <div className="bg-amber-400/10 border border-mcdYellow/40 p-4 rounded-2xl w-full sm:w-auto text-right">
+                  <p className="text-xs text-mcdYellow font-bold">단체 총 주문 금액 (나에게만 표시됨)</p>
+                  <p className="text-3xl font-black text-mcdYellow leading-tight">
+                    ₩{submittedOrders.reduce((sum, ord) => sum + ord.totalAmount, 0).toLocaleString()}원
+                  </p>
+                  <p className="text-[11px] text-gray-300 mt-1">
+                    총 {submittedOrders.length}명의 친구 주문 완료
+                  </p>
+                </div>
+              </div>
+
+              {/* Submitted Individual Orders List */}
+              <div className="flex justify-between items-center">
+                <h3 className="font-extrabold text-gray-800 text-base flex items-center gap-2">
+                  <span>친구별 주문 내역 리스트</span>
+                  <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">
+                    {submittedOrders.length}건
+                  </span>
+                </h3>
+
+                {submittedOrders.length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (confirm('수집된 모든 주문 내역을 초기화하시겠습니까?')) {
+                        setSubmittedOrders([]);
+                      }
+                    }}
+                    className="text-xs text-red-600 hover:text-red-800 font-bold bg-red-50 px-3 py-1.5 rounded-xl border border-red-200"
+                  >
+                    내역 전체 삭제
+                  </button>
+                )}
+              </div>
+
+              {submittedOrders.length === 0 ? (
+                <div className="bg-white rounded-3xl p-10 text-center border border-dashed border-gray-300">
+                  <span className="text-4xl block mb-2">🍔</span>
+                  <p className="font-bold text-gray-600 text-sm">아직 제출된 친구들의 주문이 없습니다.</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    친구들이 '일반 주문자' 모드에서 메뉴를 골라 주문서를 전송하면 이곳에 실시간으로 집계됩니다.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {submittedOrders.map(ord => (
+                    <div key={ord.id} className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm flex flex-col justify-between gap-3">
+                      
+                      <div>
+                        <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                          <div className="flex items-center gap-2">
+                            <span className="bg-mcdRed text-white text-xs font-black px-2 py-0.5 rounded-lg">
+                              {ord.studentName}
+                            </span>
+                            <span className="text-xs text-gray-500 font-bold">{ord.studentId}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-bold">
+                              {ord.diningType}
+                            </span>
+                            <span className="text-[10px] text-gray-400 block mt-0.5">{ord.createdAt}</span>
+                          </div>
+                        </div>
+
+                        {ord.customerNote && (
+                          <div className="mt-2 bg-yellow-50 p-2 rounded-xl text-xs text-amber-800 border border-yellow-200/60">
+                            <strong>요청사항:</strong> {ord.customerNote}
+                          </div>
+                        )}
+
+                        <div className="mt-3 space-y-2">
+                          {ord.items.map((it, idx) => (
+                            <div key={idx} className="flex justify-between text-xs items-center bg-gray-50 p-2 rounded-xl">
+                              <div>
+                                <p className="font-bold text-gray-800">{it.name} x {it.qty}개</p>
+                                {it.side && <p className="text-[10px] text-gray-500">- 사이드: {it.side}</p>}
+                                {it.drink && <p className="text-[10px] text-gray-500">- 음료: {it.drink}</p>}
+                              </div>
+                              <span className="font-extrabold text-gray-700">
+                                ₩{(it.price * it.qty).toLocaleString()}원
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-gray-100 flex justify-between items-center">
+                        <span className="text-xs font-bold text-gray-500">개인 주문 합계</span>
+                        <span className="text-base font-black text-mcdRed">
+                          ₩{ord.totalAmount.toLocaleString()}원
+                        </span>
+                      </div>
+
+                    </div>
+                  ))}
+                </div>
+              )}
+
+            </div>
+          ) : (
+            /* STANDARD KIOSK VIEW */
+            <div className="flex flex-1 overflow-hidden">
+              
+              {/* SIDEBAR NAVIGATION (Category Selector) */}
+              <nav className="w-28 sm:w-36 bg-gray-50 border-r border-mcdBorder flex flex-col shrink-0 overflow-y-auto">
+                {CATEGORIES.map(cat => {
+                  const isActive = activeCategory === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setActiveCategory(cat.id)}
+                      className={`flex flex-col items-center justify-center py-4 px-2 border-b border-gray-200 transition-all text-center relative ${
+                        isActive 
+                          ? 'bg-white font-extrabold text-mcdRed border-l-8 border-l-mcdRed shadow-sm' 
+                          : 'text-gray-600 hover:bg-gray-100 font-medium'
+                      }`}
+                    >
+                      <span className="text-2xl mb-1">
+                        {cat.id === 'rec' && '⭐'}
+                        {cat.id === 'burger' && '🍔'}
+                        {cat.id === 'happy_snack' && '🏷️'}
+                        {cat.id === 'snack' && '🍟'}
+                        {cat.id === 'drink' && '🥤'}
+                        {cat.id === 'dessert' && '🍦'}
+                        {cat.id === 'mcmorning' && '🥞'}
+                        {cat.id === 'happymeal' && '🎁'}
+                      </span>
+                      <span className="text-xs sm:text-sm leading-tight">{cat.name}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+
+              {/* ITEM GRID DISPLAY */}
+              <main className="flex-1 overflow-y-auto p-4 bg-gray-100">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <span>{CATEGORIES.find(c => c.id === activeCategory)?.name}</span>
+                    <span className="text-xs bg-gray-200 text-gray-600 font-normal px-2 py-0.5 rounded-full">
+                      {displayedItems.length}개 메뉴
+                    </span>
+                  </h2>
+                  <span className="text-xs text-gray-400">터치하여 메뉴 옵션 선택</span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {displayedItems.map(item => (
+                    <div
+                      key={item.id}
+                      onClick={() => handleItemClick(item)}
+                      className="bg-white rounded-2xl p-3 border border-gray-200 shadow-sm hover:shadow-md hover:border-mcdYellow transition-all duration-200 cursor-pointer flex flex-col justify-between group relative overflow-hidden"
+                    >
+                      <div className="flex gap-1 absolute top-2 left-2 z-10 flex-wrap">
+                        {item.priceLunch && (
+                          <span className="bg-mcdRed text-white font-extrabold text-[9px] px-1.5 py-0.5 rounded-md shadow-sm">
+                            맥런치
+                          </span>
+                        )}
+                        {item.category === 'happy_snack' && (
+                          <span className="bg-amber-500 text-white font-extrabold text-[9px] px-1.5 py-0.5 rounded-md shadow-sm">
+                            해피스낵
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="text-center my-2 group-hover:scale-105 transition-transform duration-200">
+                        <div className="text-5xl my-2 drop-shadow-sm select-none">{item.img}</div>
+                        <h3 className="font-bold text-sm text-gray-900 leading-snug line-clamp-2 min-h-[2.5rem]">
+                          {item.name}
+                        </h3>
+                        <p className="text-[11px] text-gray-400 mt-0.5">{item.cal} kcal</p>
+                      </div>
+
+                      <div className="mt-2 pt-2 border-t border-gray-100 flex flex-col gap-0.5 text-xs">
+                        {item.priceLunch && (
+                          <div className="flex justify-between items-center text-mcdRed font-black">
+                            <span>런치세트</span>
+                            <span>₩{item.priceLunch.toLocaleString()}</span>
+                          </div>
+                        )}
+                        {item.priceSet && (
+                          <div className="flex justify-between items-center text-gray-700 font-bold">
+                            <span>일반세트</span>
+                            <span>₩{item.priceSet.toLocaleString()}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center text-gray-500">
+                          <span>단품</span>
+                          <span className="font-semibold">₩{item.priceSingle.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </main>
+            </div>
+          )}
+
+          {/* BOTTOM CART & ORDER SUMMARY BAR (ONLY IN STUDENT MODE) */}
+          {userRole === 'student' && (
+            <div className="bg-white border-t border-mcdBorder p-3 shadow-2xl shrink-0 z-20">
+              {cart.length === 0 ? (
+                <div className="text-center py-3 text-gray-400 text-sm flex items-center justify-center gap-2">
+                  <span>🛒</span>
+                  <span>장바구니가 비어 있습니다. 메뉴를 선택해 주세요.</span>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {/* Cart Preview Horizon Slider */}
+                  <div className="flex gap-2 overflow-x-auto pb-1 max-h-24">
+                    {cart.map(cItem => (
+                      <div 
+                        key={cItem.id} 
+                        className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl p-2 shrink-0 text-xs shadow-sm relative min-w-[180px]"
+                      >
+                        <span className="text-2xl">{cItem.img}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-gray-800 truncate">{cItem.name}</p>
+                          {cItem.side && <p className="text-[10px] text-gray-500 truncate">+ {cItem.side}</p>}
+                          {cItem.drink && <p className="text-[10px] text-gray-500 truncate">+ {cItem.drink}</p>}
+                          <p className="font-extrabold text-mcdRed mt-0.5">
+                            ₩{(cItem.price * cItem.qty).toLocaleString()}
+                          </p>
+                        </div>
+
+                        {/* Qty controller */}
+                        <div className="flex flex-col items-center gap-1 bg-white border border-gray-200 rounded-lg p-0.5">
+                          <button 
+                            onClick={() => updateQty(cItem.id, 1)}
+                            className="w-5 h-5 bg-gray-100 hover:bg-mcdYellow rounded text-xs font-bold flex items-center justify-center active:scale-95"
+                          >
+                            +
+                          </button>
+                          <span className="font-bold text-xs">{cItem.qty}</span>
+                          <button 
+                            onClick={() => updateQty(cItem.id, -1)}
+                            className="w-5 h-5 bg-gray-100 hover:bg-red-100 text-red-600 rounded text-xs font-bold flex items-center justify-center active:scale-95"
+                          >
+                            -
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Total & Action Buttons */}
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs bg-mcdRed text-white px-2 py-1 rounded-md font-bold">
+                        내 주문 ({totalItemsCount}개)
+                      </span>
+                      <div>
+                        <p className="text-[10px] text-gray-400">내 결제예정금액</p>
+                        <p className="text-lg font-black text-mcdRed leading-none">
+                          ₩{totalAmount.toLocaleString()}원
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setCart([])}
+                        className="px-3 py-2 text-xs font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all"
+                      >
+                        전체 삭제
+                      </button>
+                      
+                      <button
+                        onClick={() => setIsHostModalOpen(true)}
+                        className="px-5 py-2.5 bg-mcdYellow hover:bg-mcdYellowHover text-mcdDark font-extrabold text-sm rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 active:scale-95 border border-amber-400"
+                      >
+                        <span>✉️ 주문서 제출 / 호스트 전달</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* CUSTOMIZATION MODAL */}
+          {selectedItem && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
+                
+                {/* Modal Header */}
+                <div className="bg-mcdRed text-white p-4 flex justify-between items-center relative">
+                  <div className="flex items-center gap-2">
+                    <span className="text-3xl">{selectedItem.img}</span>
+                    <div>
+                      <h3 className="font-extrabold text-lg leading-tight">{selectedItem.name}</h3>
+                      <p className="text-xs text-red-100">{selectedItem.cal} kcal</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedItem(null)}
+                    className="w-8 h-8 rounded-full bg-red-700 hover:bg-red-800 text-white flex items-center justify-center font-bold text-sm"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Modal Body */}
+                <div className="p-4 overflow-y-auto flex-1 flex flex-col gap-5">
+                  <p className="text-xs text-gray-600 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                    {selectedItem.desc}
+                  </p>
+
+                  {/* Option 1: Meal Type (Single vs Set vs Lunch) */}
+                  {(selectedItem.priceSet || selectedItem.priceLunch) && (
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-2">1. 식사 구성 선택</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          onClick={() => setMealType('single')}
+                          className={`p-2.5 rounded-2xl border text-center transition-all ${
+                            mealType === 'single'
+                              ? 'border-mcdRed bg-red-50 text-mcdRed font-bold shadow-sm ring-2 ring-mcdRed/20'
+                              : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="text-xs">단품</div>
+                          <div className="text-xs font-extrabold mt-1">₩{selectedItem.priceSingle.toLocaleString()}</div>
+                        </button>
+
+                        {selectedItem.priceLunch && (
+                          <button
+                            onClick={() => setMealType('lunch')}
+                            className={`p-2.5 rounded-2xl border text-center transition-all ${
+                              mealType === 'lunch'
+                                ? 'border-mcdRed bg-red-50 text-mcdRed font-bold shadow-sm ring-2 ring-mcdRed/20'
+                                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="text-xs font-extrabold text-mcdRed">🔥 맥런치 세트</div>
+                            <div className="text-xs font-black mt-1 text-mcdRed">₩{selectedItem.priceLunch.toLocaleString()}</div>
+                            <div className="text-[9px] text-gray-400 mt-0.5">할인가 세트</div>
+                          </button>
+                        )}
+
+                        {selectedItem.priceSet && (
+                          <button
+                            onClick={() => setMealType('set')}
+                            className={`p-2.5 rounded-2xl border text-center transition-all ${
+                              mealType === 'set'
+                                ? 'border-mcdRed bg-red-50 text-mcdRed font-bold shadow-sm ring-2 ring-mcdRed/20'
+                                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="text-xs">일반 세트</div>
+                            <div className="text-xs font-extrabold mt-1">₩{selectedItem.priceSet.toLocaleString()}</div>
+                            <div className="text-[9px] text-gray-400 mt-0.5">버거+사이드+음료</div>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Option 2: Side Selection (If Set/Lunch) */}
+                  {mealType !== 'single' && (selectedItem.priceSet || selectedItem.priceLunch) && (
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-2">2. 사이드 메뉴 변경</label>
+                      <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-1">
+                        {SIDES_OPTIONS.map(side => (
+                          <div
+                            key={side.id}
+                            onClick={() => setSelectedSide(side)}
+                            className={`p-2.5 rounded-xl border flex items-center justify-between text-xs cursor-pointer transition-all ${
+                              selectedSide.id === side.id
+                                ? 'border-mcdRed bg-red-50 font-bold text-mcdRed'
+                                : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            <span>{side.name}</span>
+                            <span className="text-gray-500 font-semibold">
+                              {side.extraPrice > 0 ? `+₩${side.extraPrice.toLocaleString()}` : '추가금 없음'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Option 3: Drink Selection (If Set/Lunch) */}
+                  {mealType !== 'single' && (selectedItem.priceSet || selectedItem.priceLunch) && (
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-2">3. 음료 메뉴 변경</label>
+                      <div className="flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-1">
+                        {DRINKS_OPTIONS.map(dr => (
+                          <div
+                            key={dr.id}
+                            onClick={() => setSelectedDrink(dr)}
+                            className={`p-2.5 rounded-xl border flex items-center justify-between text-xs cursor-pointer transition-all ${
+                              selectedDrink.id === dr.id
+                                ? 'border-mcdRed bg-red-50 font-bold text-mcdRed'
+                                : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            <span>{dr.name}</span>
+                            <span className="text-gray-500 font-semibold">
+                              {dr.extraPrice > 0 ? `+₩${dr.extraPrice.toLocaleString()}` : '추가금 없음'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Modal Footer / Add Button */}
+                <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] text-gray-400">선택 항목 합계</p>
+                    <p className="text-lg font-black text-mcdRed">
+                      ₩{modalCalculatedPrice.toLocaleString()}원
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleAddToCart}
+                    className="flex-1 py-3 bg-mcdYellow hover:bg-mcdYellowHover text-mcdDark font-extrabold text-sm rounded-2xl shadow-md transition-all text-center"
+                  >
+                    장바구니에 담기
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* SEND TO HOST MODAL */}
+          {isHostModalOpen && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
+                
+                {/* Header */}
+                <div className="bg-mcdDark text-white p-4 flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">📋</span>
+                    <div>
+                      <h3 className="font-extrabold text-base text-mcdYellow">주문서 제출 및 전달</h3>
+                      <p className="text-xs text-gray-300">주문자 학번과 이름으로 호스트 시스템에 제출합니다.</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setIsHostModalOpen(false)}
+                    className="text-gray-400 hover:text-white text-lg font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-4 overflow-y-auto flex-1 flex flex-col gap-4">
+                  
+                  {/* Student Info Verification */}
+                  <div className="bg-amber-50 p-3 rounded-2xl border border-amber-200 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="text-gray-500 font-bold block">주문자 정보:</span>
+                      <span className="font-black text-gray-800 text-sm">
+                        {studentId || '(학번 미입력)'} {studentName || '(이름 미입력)'}
+                      </span>
+                    </div>
+                    <span className="text-xs bg-mcdRed text-white px-2.5 py-1 rounded-full font-bold">
+                      {diningType === 'eatIn' ? '매장 식사' : '포장'}
+                    </span>
+                  </div>
+
+                  {/* Customer Note Input */}
+                  <div>
+                    <label className="text-xs font-bold text-gray-700 block mb-1">
+                      호스트에게 전달할 요청사항 (선택)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="예: 피클 빼주세요, 얼음 적게 부탁드립니다"
+                      value={customerNote}
+                      onChange={(e) => setCustomerNote(e.target.value)}
+                      className="w-full text-xs p-2.5 border border-gray-300 rounded-xl focus:outline-none focus:border-mcdRed"
+                    />
+                  </div>
+
+                  {/* Formatted Text Box */}
+                  <div>
+                    <label className="text-xs font-bold text-gray-700 block mb-1">생성된 전송용 텍스트</label>
+                    <textarea
+                      readOnly
+                      rows="7"
+                      value={`[맥도날드 키오스크 주문 요청서]\n--------------------------\n• 주문자: ${studentId} ${studentName}\n• 식사 방식: ${diningType === 'eatIn' ? '매장 식사' : '포장'}\n${customerNote ? '• 요청사항: ' + customerNote + '\n' : ''}--------------------------\n[주문 내역]\n` + cart.map((item, i) => `${i+1}. ${item.name} x ${item.qty}개 (₩${(item.price * item.qty).toLocaleString()}원)\n${item.side ? '   - 사이드: ' + item.side + '\n' : ''}${item.drink ? '   - 음료: ' + item.drink + '\n' : ''}`).join('') + `--------------------------\n개인 주문 금액: ₩${totalAmount.toLocaleString()}원`}
+                      className="w-full text-xs font-mono p-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 leading-relaxed resize-none focus:outline-none"
+                    ></textarea>
+                  </div>
+
+                </div>
+
+                {/* Actions */}
+                <div className="p-4 bg-gray-50 border-t border-gray-100 flex flex-col gap-2">
+                  <button
+                    onClick={handleSendOrderToGroupPool}
+                    className="w-full py-3.5 bg-mcdRed hover:bg-red-700 text-white font-extrabold text-sm rounded-2xl shadow-md transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>🚀 호스트에게 주문서 직접 제출하기</span>
+                  </button>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleCopyHostText}
+                      className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1 border ${
+                        copiedText
+                          ? 'bg-green-600 text-white border-green-600'
+                          : 'bg-mcdYellow hover:bg-mcdYellowHover text-mcdDark border-amber-300'
+                      }`}
+                    >
+                      <span>{copiedText ? '✓ 텍스트 복사완료' : '📋 텍스트 복사'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (navigator.share) {
+                          navigator.share({
+                            title: '맥도날드 주문서',
+                            text: formattedOrderText
+                          }).catch(() => {});
+                        } else {
+                          handleCopyHostText();
+                        }
+                      }}
+                      className="py-2.5 px-4 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold text-xs rounded-xl transition-all"
+                    >
+                      카톡/공유
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
